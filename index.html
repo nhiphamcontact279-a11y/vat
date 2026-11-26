@@ -1,0 +1,110 @@
+<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Thống kê VAT theo hóa đơn</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 10%27%3E%3Crect width=%2710%27 height=%2710%27 fill=%27%23c00000%27/%3E%3C/svg%3E">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1d2733;--mu:#5f6b7a;--ln:#dfe3e8;--pr:#1f4e78;--out:#2e7d6b;--in:#c0612b;--bad:#b3261e;--hl:#fff4d6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181d;--card:#1d242c;--tx:#e8ecf1;--mu:#98a4b3;--ln:#2e3742;--pr:#7fb2e0;--out:#5fc4aa;--in:#f0a070;--bad:#ff8a80;--hl:#4a3f1c;color-scheme:dark}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0 auto;background:var(--bg);color:var(--tx);font:14px/1.5 Arial,Helvetica,sans-serif;padding:16px;max-width:1150px}
+h1{font-size:20px;margin:4px 0}h2{font-size:15px;margin:22px 0 8px}.sub{color:var(--mu);font-size:12px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:12px}
+.c,.box{background:var(--card);border:1px solid var(--ln);border-radius:10px;padding:12px}.c b{display:block;font-size:19px}.c span{color:var(--mu);font-size:12px}
+.sc{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:560px}th,td{padding:5px 8px;border-bottom:1px solid var(--ln);text-align:right;white-space:nowrap}th{color:var(--mu);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}
+tr.t td{font-weight:700;border-top:2px solid var(--ln)}tr.z td{background:var(--hl)}.neg{color:var(--bad)}td.tx{text-align:left;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.bars{display:flex;align-items:flex-end;gap:6px;height:170px}.g{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end}.pair{display:flex;align-items:flex-end;gap:2px;height:140px}.pair i{display:block;width:11px;border-radius:3px 3px 0 0;min-height:1px}.o{background:var(--out)}.n{background:var(--in)}.g small{font-size:11px;color:var(--mu)}
+.lg{font-size:12px;color:var(--mu);margin-top:6px}.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 10px}
+select,input,button{font:inherit;padding:6px 8px;border:1px solid var(--ln);border-radius:8px;background:var(--card);color:var(--tx)}
+button{background:var(--pr);color:var(--bg);border:0;font-weight:600;cursor:pointer}button.s{background:var(--card);color:var(--tx);border:1px solid var(--ln);font-weight:400}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}#msg{font-size:12px;color:var(--mu);margin-top:8px}ul{margin:6px 0 0 18px;padding:0;color:var(--mu);font-size:12px}
+
+.ok{color:var(--out)}.warn{color:var(--bad)}details{margin-top:8px;font-size:12px;color:var(--mu)}td input[type=date]{padding:2px 4px;width:132px}td input[type=number]{width:120px;padding:3px 6px;text-align:right}.bn{padding:2px 8px;font-size:12px}
+</style></head><body>
+<h1>Thống kê VAT đầu ra – đầu vào theo hóa đơn</h1><div class="sub">Công ty TNHH Local Gaming · đơn vị: đồng · <span id="st">đang tải dữ liệu…</span></div>
+<h2>0. Kết nối Google Sheet</h2>
+<div class="box"><div class="row"><input id="url" placeholder="Dán URL Web App của Apps Script" style="flex:1;min-width:240px"><input id="tok" type="password" placeholder="TOKEN" style="width:200px"><button id="cn">Kết nối</button><button id="rl" class="s">Tải lại từ Sheet</button></div><div class="sub" id="cs" style="margin-top:6px"></div></div>
+<h2>1. Cập nhật dữ liệu</h2>
+<div class="box"><div class="row"><input type="file" id="up" accept=".xlsx,.xls" multiple><label class="sub"><input type="checkbox" id="ow" checked style="padding:0"> Cập nhật hóa đơn đã có nếu số liệu khác</label><button id="dl">Tải file Excel</button></div>
+<div class="sub" style="margin-top:6px">Gửi Bảng kê bán ra, Bảng kê mua vào hoặc chính file thống kê (sheet “Bán ra theo đơn”, “Mua vào theo đơn”). Trang gộp vào dữ liệu đã lưu: hóa đơn trùng (cùng ký hiệu + số HĐ, hoặc cùng số HĐ + MST người bán) được bỏ qua, hóa đơn mới được thêm. Ngày chị đã sửa tay không bị ghi đè.</div><div id="msg"></div></div>
+<div class="cards" id="cards"></div>
+<h2>2. VAT theo quý (đầu kỳ – mua – bán – còn khấu trừ – nộp thuế)</h2><div class="box sc"><table id="tq"></table></div>
+<h2>3. Thống kê theo tháng</h2>
+<div class="box"><div class="bars" id="bars"></div><div class="lg"><i class="o"></i>VAT đầu ra<i class="n"></i>VAT đầu vào</div></div>
+<div class="box sc" style="margin-top:10px"><table id="tm"></table></div>
+<h2>4. Danh sách hóa đơn</h2>
+<div class="box"><div class="row"><select id="kind"><option value="s">Bán ra</option><option value="b">Mua vào</option></select><select id="mo"></select><input id="q" placeholder="Tìm số HĐ / người mua-bán / nội dung"></div>
+<div class="sub" id="cnt" style="margin:6px 0"></div><div class="sc" style="max-height:480px;overflow:auto"><table id="tb"></table></div></div>
+<h2>5. Kiểm tra trùng</h2><div class="box"><div class="sub" id="dupn"></div><div class="sc" style="max-height:320px;overflow:auto"><table id="dp"></table></div></div>
+<h2>Ghi chú</h2><ul><li>Mỗi dòng là một hóa đơn (nhiều dòng hàng của cùng hóa đơn đã gộp). Dòng vàng: bán ra có VAT bằng 0 hoặc mua vào là hóa đơn chiết khấu (số âm).</li><li>Tháng, quý tính theo ngày hóa đơn; ngày sửa được trong danh sách. Dữ liệu lưu trong Google Sheet nên mở lại trang hoặc ở máy khác vẫn thấy; ngày “cập nhật lần cuối” ghi tự động khi có dữ liệu mới.</li><li>Chưa kiểm tra điều kiện khấu trừ đầu vào.</li></ul>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const $=i=>document.getElementById(i),f=n=>Math.round(n).toLocaleString('vi-VN'),cl=n=>n<0?'neg':'',sum=a=>a.reduce((x,y)=>x+y,0),M=[...Array(12).keys()];
+let S={s:{},b:{}},CFG={paid:{},updatedAt:''},ready=false;
+const sk=x=>x.k+'|'+x.so,bk=x=>x.so+'|'+x.m,mid=(t,x)=>t+'-'+x.d.slice(0,7),mo=d=>+d.slice(5,7)-1,qn=d=>'Q'+(Math.floor(mo(d)/3)+1)+'/'+d.slice(0,4);
+const dt=v=>{if(typeof v==='number')return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10);const m=String(v).match(/(\d+)\/(\d+)\/(\d{4})/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''};
+const pad=s=>/^\d+$/.test(s)&&s.length<8?s.padStart(8,'0'):s;
+function parse(rows){for(let h=0;h<Math.min(rows.length,20);h++){const H=rows[h].map(x=>String(x).trim()),ix=(...ns)=>{for(const n of ns){const i=H.indexOf(n);if(i>=0)return i}return-1};
+const so=ix('Số hóa đơn'),d=ix('Ngày hóa đơn','Ngày HĐ'),v=ix('Thuế GTGT','Tiền thuế GTGT');if(so<0||d<0||v<0)continue;
+const kh=ix('Ký hiệu HĐ','Ký hiệu'),gS=ix('Doanh số bán chưa có thuế GTGT','Doanh số chưa thuế'),nm=ix('Tên người mua','Người mua'),it=ix('Mặt hàng','Nội dung'),
+nb=ix('Tên người bán','Người bán'),gB=ix('Giá trị HHDV mua vào chưa có thuế','Giá trị chưa thuế'),mst=ix('Mã số thuế người bán','MST người bán'),rt=ix('Thuế suất');
+const inv=new Map(),seen=new Set();let dup=0,kind=null;
+for(const r of rows.slice(h+1)){const day=dt(r[d]),vat=r[v];if(!day||typeof vat!=='number')continue;const s0=String(r[so]).trim().replace(/^0+/,'');
+if(kh>=0&&gS>=0){const k=String(r[kh]).trim();if(!/^\d[A-Z]/.test(k))continue;kind='s';const key=k+'|'+s0,g=Math.round(+r[gS]||0),lk=key+'|'+(it>=0?r[it]:'')+'|'+g+'|'+vat;if(seen.has(lk)){dup++;continue}seen.add(lk);
+const x=inv.get(key)||{k,so:s0,d:day,n:String(nm>=0?r[nm]:'').slice(0,40),g:0,v:0};x.g+=g;x.v+=Math.round(vat);inv.set(key,x)}
+else if(nb>=0&&gB>=0){const n=String(r[nb]||'').trim();if(!n)continue;kind='b';const m=String(mst>=0?r[mst]:'').trim(),key=s0+'|'+m,g=Math.round(+r[gB]||0),lk=key+'|'+(it>=0?r[it]:'')+'|'+g+'|'+vat;if(seen.has(lk)){dup++;continue}seen.add(lk);
+const x=inv.get(key)||{so:s0,d:day,n,m,i:String(it>=0?r[it]:'').slice(0,70),g:0,r:String(rt>=0?r[rt]:''),v:0};x.g+=g;x.v+=Math.round(vat);inv.set(key,x)}}
+if(kind)return{kind,inv,dup}}return null}
+function merge(P,ow){const L={new:0,same:0,upd:0,dup:P.dup,list:[],ch:[]},T=P.kind,t=new Set(),K=T==='s'?sk:bk;
+for(const x of P.inv.values()){const k=K(x),e=S[T][k];if(!e){S[T][k]=x;L.new++;L.ch.push(x);t.add(mid(T,x))}
+else if(e.g===x.g&&e.v===x.v)L.same++;
+else if(ow&&!(x.v===0&&e.v!==0)){L.list.push(`${pad(x.so)}: VAT ${f(e.v)} → ${f(x.v)}`);S[T][k]={...x,d:e.d};L.upd++;L.ch.push(S[T][k]);t.add(mid(T,e))}else L.same++}
+return{L,t}}
+const CF=(()=>{try{return JSON.parse(localStorage.getItem('vat_cfg'))||{}}catch(e){return{}}})();
+const lsv={get(){try{return JSON.parse(localStorage.getItem('vat4'))}catch(e){return null}},set(){try{localStorage.setItem('vat4',JSON.stringify({S,CFG}))}catch(e){}}};
+const arr=(T,x)=>T==='s'?[x.k,x.so,x.d,x.n,x.g,x.v]:[x.so,x.d,x.n,x.m,x.i,x.g,x.r,x.v];
+async function api(body){const r=await fetch(CF.url,{method:'POST',body:JSON.stringify({token:CF.tok,...body})}),j=await r.json();if(j.error)throw new Error(j.error);if(j.updatedAt)CFG.updatedAt=j.updatedAt;return j}
+async function push(T,xs,force){lsv.set();if(!CF.url||!xs.length)return;try{const j=await api({action:'upsert',type:T,rows:xs.map(x=>arr(T,x)),force:!!force});$('cs').textContent=`Đã ghi lên Google Sheet (${T==='s'?'bán ra':'mua vào'}): ${j.added} mới, ${j.updated} cập nhật, ${j.skipped} bỏ qua · ${j.updatedAt}`}catch(e){$('cs').textContent='Không ghi được lên Google Sheet: '+e.message}}
+async function delRow(T,key){lsv.set();if(!CF.url)return;try{await api({action:'delete',type:T,key});$('cs').textContent='Đã xóa trên Google Sheet · '+CFG.updatedAt}catch(e){$('cs').textContent='Không xóa được trên Google Sheet: '+e.message}}
+async function cfgSave(){lsv.set();if(!CF.url)return;try{await api({action:'cfg',paid:CFG.paid})}catch(e){$('cs').textContent='Không lưu được số đã nộp: '+e.message}}
+async function pull(){if(!CF.url){$('cs').textContent='Chưa kết nối Google Sheet – dữ liệu chỉ lưu trên trình duyệt này.';return}
+$('cs').textContent='Đang tải từ Google Sheet…';try{const r=await fetch(CF.url+'?token='+encodeURIComponent(CF.tok||'')),j=await r.json();if(j.error)throw new Error(j.error);
+const n={s:{},b:{}};j.sales.forEach(a=>{const x={k:a[0],so:a[1],d:a[2],n:a[3],g:a[4],v:a[5]};n.s[sk(x)]=x});j.buy.forEach(a=>{const x={so:a[0],d:a[1],n:a[2],m:a[3],i:a[4],g:a[5],r:a[6],v:a[7]};n.b[bk(x)]=x});
+S=n;CFG={paid:j.paid||{},updatedAt:j.updatedAt||''};ready=true;lsv.set();$('cs').textContent=`Đã kết nối Google Sheet · ${j.sales.length} hóa đơn bán ra, ${j.buy.length} dòng mua vào`;render()}catch(e){$('cs').textContent='Không tải được từ Google Sheet: '+e.message+' (đang dùng dữ liệu lưu trên máy)'}}
+function agg(a){return M.map(i=>{const r=a.filter(x=>mo(x.d)===i);return{n:r.length,g:sum(r.map(x=>x.g)),v:sum(r.map(x=>x.v))}})}
+function render(){const A=Object.values(S.s),B=Object.values(S.b),a=agg(A),b=agg(B);let c=0;const R=M.map(i=>{const d=a[i].v-b[i].v;c+=d;return{i,a:a[i],b:b[i],d,c}}),to=sum(R.map(r=>r.a.v)),ti=sum(R.map(r=>r.b.v)),mx=Math.max(1,...R.map(r=>r.a.v),...R.map(r=>r.b.v));
+if(!A.length&&!B.length&&ready)$('msg').textContent='Chưa có dữ liệu – hãy tải file lên.';$('st').textContent=CFG.updatedAt?'cập nhật lần cuối '+CFG.updatedAt:'';
+const yrs=[...new Set([...A,...B].map(x=>x.d.slice(0,4)))].sort(),Y=yrs.length?yrs[yrs.length-1]:'2026';
+let kt=0,paidT=0,owe=0;const QR=[0,1,2,3].map(q=>{const qq=`Q${q+1}/${Y}`,p=R.slice(q*3,q*3+3),mu=sum(p.map(r=>r.b.v)),ba=sum(p.map(r=>r.a.v)),dk=kt,net=dk+mu-ba,e=Math.max(net,0),n=Math.max(-net,0),pd=+CFG.paid[qq]||0;kt=e;paidT+=pd;owe+=n-pd;return{qq,dk,mu,ba,e,n,pd,o:n-pd}});
+$('cards').innerHTML=[['VAT đầu ra',f(to)],['VAT đầu vào',f(ti)],['Chênh lệch lũy kế',f(to-ti)],['Đã nộp',f(paidT)],['Còn phải nộp',f(owe)]].map(x=>`<div class="c"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');
+$('tq').innerHTML='<tr><th>Quý</th><th>Đầu kỳ</th><th>Mua (VAT vào)</th><th>Bán (VAT ra)</th><th>Còn khấu trừ</th><th>Nộp thuế</th><th>Đã nộp (sửa được)</th><th>Còn phải nộp</th></tr>'+QR.map(r=>`<tr><td>${r.qq}</td><td>${f(r.dk)}</td><td>${f(r.mu)}</td><td>${f(r.ba)}</td><td>${f(r.e)}</td><td>${f(r.n)}</td><td><input type="number" data-q="${r.qq}" value="${r.pd}"></td><td class="${cl(r.o)}">${f(r.o)}</td></tr>`).join('')+`<tr class="t"><td>Cộng</td><td></td><td>${f(sum(QR.map(r=>r.mu)))}</td><td>${f(sum(QR.map(r=>r.ba)))}</td><td>${f(kt)}</td><td>${f(sum(QR.map(r=>r.n)))}</td><td>${f(paidT)}</td><td>${f(owe)}</td></tr>`;
+$('bars').innerHTML=R.map(r=>`<div class="g"><div class="pair"><i class="o" style="height:${r.a.v/mx*100}%" title="${f(r.a.v)}"></i><i class="n" style="height:${Math.max(0,r.b.v)/mx*100}%" title="${f(r.b.v)}"></i></div><small>T${r.i+1}</small></div>`).join('');
+const row=r=>`<tr><td>Tháng ${r.i+1}</td><td>${r.a.n}</td><td>${f(r.a.g)}</td><td>${f(r.a.v)}</td><td>${r.b.n}</td><td>${f(r.b.g)}</td><td>${f(r.b.v)}</td><td class="${cl(r.d)}">${f(r.d)}</td><td class="${cl(r.c)}">${f(r.c)}</td></tr>`;
+$('tm').innerHTML='<tr><th>Tháng</th><th>Số đơn bán</th><th>Doanh số bán</th><th>VAT đầu ra</th><th>Số đơn mua</th><th>Giá trị mua</th><th>VAT đầu vào</th><th>Chênh lệch</th><th>Lũy kế</th></tr>'+R.filter(r=>r.a.n||r.b.n).map(row).join('')+`<tr class="t"><td>Cộng</td><td>${A.length}</td><td>${f(sum(A.map(x=>x.g)))}</td><td>${f(to)}</td><td>${B.length}</td><td>${f(sum(B.map(x=>x.g)))}</td><td>${f(ti)}</td><td>${f(to-ti)}</td><td>${f(to-ti)}</td></tr>`;
+const v=$('mo').value||'-1';$('mo').innerHTML='<option value="-1">Tất cả tháng</option>'+M.map(i=>`<option value="${i}"${v==i?' selected':''}>Tháng ${i+1}</option>`).join('');table();dups()}
+function table(){const s=$('kind').value==='s',m=+$('mo').value,q=$('q').value.toLowerCase(),a=Object.values(s?S.s:S.b).filter(x=>(m<0||mo(x.d)===m)&&(!q||(x.so+(x.n||'')+(x.i||'')).toLowerCase().includes(q))).sort((x,y)=>x.d<y.d?1:-1),sh=a.slice(0,300);
+$('cnt').textContent=`${a.length} hóa đơn · VAT ${f(sum(a.map(x=>x.v)))}${a.length>300?' · hiển thị 300 dòng đầu, dùng bộ lọc để thu hẹp':''}`;
+const di=x=>`<input type="date" value="${x.d}" data-k="${s?sk(x):bk(x)}">`;
+$('tb').innerHTML=(s?'<tr><th>Ký hiệu</th><th>Số HĐ</th><th>Ngày (sửa được)</th><th>Người mua</th><th>Doanh số</th><th>VAT</th></tr>':'<tr><th>Số HĐ</th><th>Ngày (sửa được)</th><th>Người bán</th><th>Nội dung</th><th>Giá trị</th><th>Thuế suất</th><th>VAT</th></tr>')+sh.map(x=>{const z=s?x.v===0:x.g<0;return s?`<tr class="${z?'z':''}"><td>${x.k}</td><td>${pad(x.so)}</td><td>${di(x)}</td><td class="tx">${x.n}</td><td>${f(x.g)}</td><td>${f(x.v)}</td></tr>`:`<tr class="${z?'z':''}"><td>${pad(x.so)}</td><td>${di(x)}</td><td class="tx" title="${x.n}">${x.n}</td><td class="tx" title="${x.i}">${z?'[Chiết khấu] ':''}${x.i}</td><td>${f(x.g)}</td><td>${x.r}</td><td>${f(x.v)}</td></tr>`}).join('')}
+function dups(){const out=[];for(const[T,o]of[['s',S.s],['b',S.b]]){const g={};Object.values(o).forEach(x=>{if(T==='s'&&x.g<=0)return;const k=(T==='s'?x.n:x.m)+'|'+x.d+'|'+x.g+'|'+x.v;(g[k]=g[k]||[]).push(x)});Object.values(g).filter(a=>a.length>1).forEach(a=>out.push([T,a]))}
+const mb=out.filter(o=>o[0]==='b');$('dupn').textContent=out.length?`Nghi trùng: ${mb.length} nhóm mua vào, ${out.length-mb.length} nhóm bán ra (cùng ngày, cùng đối tác, cùng số tiền nhưng khác số hóa đơn). Bán ra lẻ trong ngày có thể giống nhau nên chị kiểm tra trước khi xóa.`:'Không phát hiện hóa đơn nghi trùng.';
+$('dp').innerHTML=out.length?'<tr><th>Loại</th><th>Số HĐ</th><th>Ngày</th><th>Đối tác</th><th>Giá trị</th><th>VAT</th><th></th></tr>'+out.slice(0,60).map(([T,a])=>a.map((x,i)=>`<tr${i?'':' style="border-top:2px solid var(--ln)"'}><td>${T==='s'?'Bán ra':'Mua vào'}</td><td>${(x.k?x.k+' ':'')+pad(x.so)}</td><td>${x.d.split('-').reverse().join('/')}</td><td class="tx">${x.n}</td><td>${f(x.g)}</td><td>${f(x.v)}</td><td><button class="s bn" data-del="${T}|${T==='s'?sk(x):bk(x)}">Xóa</button></td></tr>`).join('')).join(''):''}
+document.addEventListener('change',async e=>{const i=e.target;
+if(i.dataset.q){CFG.paid[i.dataset.q]=+i.value||0;await cfgSave();render()}
+else if(i.type==='date'&&i.dataset.k){const T=$('kind').value,x=S[T][i.dataset.k];if(!x||!i.value)return;const old=mid(T,x);x.d=i.value;await push(T,[x],true);render()}});
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-del]');if(!b||!confirm('Xóa hóa đơn này khỏi dữ liệu?'))return;const[T,...k]=b.dataset.del.split('|'),key=k.join('|'),x=S[T][key];if(!x)return;delete S[T][key];await delRow(T,key);render()});
+$('kind').onchange=table;$('mo').onchange=table;$('q').oninput=table;
+$('up').onchange=async e=>{const msg=[],up={s:[],b:[]};for(const file of e.target.files){try{const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});let ok=0;
+for(const n of wb.SheetNames){const P=parse(XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''}));if(!P)continue;ok++;const{L}=merge(P,$('ow').checked);up[P.kind].push(...L.ch);
+msg.push(`${file.name} · ${P.kind==='s'?'bán ra':'mua vào'}: ${L.new} mới, ${L.same} trùng bỏ qua${L.upd?`, ${L.upd} cập nhật`:''}${L.dup?`, ${L.dup} dòng lặp trong file`:''}`+(L.list.length?`<details><summary>Hóa đơn đã cập nhật</summary>${L.list.slice(0,30).join('<br>')}</details>`:''))}
+if(!ok)msg.push(`${file.name}: không nhận ra (cần Bảng kê bán ra / mua vào)`)}catch(x){msg.push(`${file.name}: lỗi đọc file`)}}
+$('msg').innerHTML=msg.join('<br>');e.target.value='';render();await push('s',up.s);await push('b',up.b);lsv.set();render()};
+function exportX(){const A=Object.values(S.s).sort((x,y)=>x.d<y.d?-1:1),B=Object.values(S.b).sort((x,y)=>x.d<y.d?-1:1),X=(f,v)=>({t:'n',f,v}),ser=d=>({t:'n',v:Math.round(Date.parse(d)/864e5)+25569,z:'dd/mm/yyyy'}),wb=XLSX.utils.book_new(),W=(n,a,w)=>{const s=XLSX.utils.aoa_to_sheet(a);s['!cols']=w.map(x=>({wch:x}));XLSX.utils.book_append_sheet(wb,s,n)};
+const sa=[['Ký hiệu','Số HĐ','Ngày','Người mua','Doanh số','VAT','Tháng','Quý'],...A.map((x,i)=>{const r=i+2;return[x.k,pad(x.so),ser(x.d),x.n,x.g,x.v,X(`MONTH(C${r})`,mo(x.d)+1),{t:'s',f:`"Q"&ROUNDUP(G${r}/3,0)&"/"&YEAR(C${r})`,v:qn(x.d)}]})];
+const ma=[['Số HĐ','Ngày','Người bán','MST','Nội dung','Giá trị','Thuế suất','VAT','Tháng','Quý'],...B.map((x,i)=>{const r=i+2;return[pad(x.so),ser(x.d),x.n,x.m,x.i,x.g,x.r,x.v,X(`MONTH(B${r})`,mo(x.d)+1),{t:'s',f:`"Q"&ROUNDUP(I${r}/3,0)&"/"&YEAR(B${r})`,v:qn(x.d)}]})];
+const na=A.length+1,nb=B.length+1,SA="'Bán ra theo đơn'!",MA="'Mua vào theo đơn'!",Y=(A[0]||B[0]||{d:'2026'}).d.slice(0,4);
+const mt=[['Tháng','Số đơn bán','Doanh số bán','VAT đầu ra','Số đơn mua','Giá trị mua','VAT đầu vào','Chênh lệch','Lũy kế'],...M.map(i=>{const r=i+2;return[i+1,X(`COUNTIFS(${SA}$G$2:$G$${na},A${r})`,0),X(`SUMIFS(${SA}$E$2:$E$${na},${SA}$G$2:$G$${na},A${r})`,0),X(`SUMIFS(${SA}$F$2:$F$${na},${SA}$G$2:$G$${na},A${r})`,0),X(`COUNTIFS(${MA}$I$2:$I$${nb},A${r})`,0),X(`SUMIFS(${MA}$F$2:$F$${nb},${MA}$I$2:$I$${nb},A${r})`,0),X(`SUMIFS(${MA}$H$2:$H$${nb},${MA}$I$2:$I$${nb},A${r})`,0),X(`D${r}-G${r}`,0),X(i?`I${r-1}+H${r}`:`H${r}`,0)]})];
+const qt=[['Quý','Đầu kỳ','Mua (VAT vào)','Bán (VAT ra)','Còn khấu trừ','Nộp thuế','Đã nộp','Còn phải nộp'],...[1,2,3,4].map(q=>{const r=q+1,qq=`Q${q}/${Y}`;return[qq,q>1?X(`E${r-1}`,0):0,X(`SUMIFS(${MA}$H$2:$H$${nb},${MA}$J$2:$J$${nb},A${r})`,0),X(`SUMIFS(${SA}$F$2:$F$${na},${SA}$H$2:$H$${na},A${r})`,0),X(`MAX(B${r}+C${r}-D${r},0)`,0),X(`MAX(D${r}-B${r}-C${r},0)`,0),+CFG.paid[qq]||0,X(`F${r}-G${r}`,0)]}),['Cộng','',X('SUM(C2:C5)',0),X('SUM(D2:D5)',0),X('E5',0),X('SUM(F2:F5)',0),X('SUM(G2:G5)',0),X('SUM(H2:H5)',0)]];
+W('Tổng hợp',[...qt,[],...mt],[14,12,16,16,12,16,16,16,16]);W('Bán ra theo đơn',sa,[10,12,12,34,16,14,8,10]);W('Mua vào theo đơn',ma,[12,12,40,14,44,16,9,14,8,10]);
+const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'}),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buf],{type:'application/octet-stream'}));a.download='Thong_ke_VAT_theo_hoa_don.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+$('dl').onclick=exportX;
+$('url').value=CF.url||'';$('tok').value=CF.tok||'';
+$('cn').onclick=()=>{CF.url=$('url').value.trim();CF.tok=$('tok').value.trim();try{localStorage.setItem('vat_cfg',JSON.stringify(CF))}catch(e){}pull()};$('rl').onclick=pull;
+(async()=>{const x=lsv.get();if(x){S=x.S;CFG=x.CFG||CFG}ready=true;render();await pull()})();
+</script></body></html>
